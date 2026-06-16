@@ -3,22 +3,21 @@ import random
 import tensorflow as tf
 import pandas as pd
 import numpy as np
+import keras
+import matplotlib.pyplot as plt
+import joblib
+import seaborn as sns
+
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-import keras
 from keras import layers
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
-import joblib
-import seaborn as sns
 from sklearn.utils import class_weight
 from keras.models import load_model
-import json
 from imblearn.over_sampling import SMOTE
 
-# resolve relative paths from the project root, regardless of where you run this
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 SEED = 42
@@ -42,9 +41,8 @@ inputs = ["age", "sex", "cp", "trestbps", "chol", "fbs", "restecg", "thalach", "
 
 # separation x=input and y=target 
 X = clean_data[inputs]
-#y = clean_data["class_attbr"]                     #51% & 64%overal
 y = clean_data["class_attbr"].astype(int)          #51% & 64%overal
-#y = (clean_data["class_attbr"] > 0).astype(int)   #77% & 95%overal
+#y = (clean_data["class_attbr"] > 0).astype(int)   #77% & 95%overal (binary classification)
 
 # train/validate/test split BEFORE scaling
 X_train_raw, X_temp_raw, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
@@ -73,10 +71,10 @@ model = keras.Sequential([
 
         layers.InputLayer(input_shape=(X_train.shape[1],), name="input_layer"),
 
-        layers.Dense(22, activation="relu", name="hidden_layer1", kernel_initializer="he_normal",kernel_regularizer=keras.regularizers.l2(0.01)),
-        layers.Dropout(0.2), #w/0.5 --> 51,64 w/0.2 --> 68,53
+        layers.Dense(18, activation="relu", name="hidden_layer1", kernel_initializer="he_normal", kernel_regularizer=keras.regularizers.l2(0.01)),
+        layers.Dropout(0.2), 
         #layers.BatchNormalization(),
-        layers.Dense(19, activation="relu", name="hidden_layer2", kernel_initializer="he_normal"),
+        layers.Dense(16, activation="relu", name="hidden_layer2", kernel_initializer="he_normal"),
 
         layers.Dense(5, activation="softmax", name="output_layer")
     ])
