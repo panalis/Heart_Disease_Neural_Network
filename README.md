@@ -61,7 +61,8 @@ The pipeline is deliberately built to avoid **data leakage**:
 | Test accuracy       | ~67%   |
 
 > **Note on variance.** The test set is only 30 samples, so each sample is worth ~3.3%
-> of accuracy and results vary run-to-run.
+> of accuracy and results vary run-to-run. Fixed random seed is added to make 
+> runs reproducible.
 
 Running the script also produces training/validation curves, a confusion matrix, and a
 per-class classification report.
