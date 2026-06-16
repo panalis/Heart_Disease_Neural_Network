@@ -5,7 +5,6 @@ severity levels (0–4)** using the UCI Cleveland Heart Disease dataset. Built w
 TensorFlow/Keras, with a focus on a **leakage-free preprocessing pipeline** and
 **class-imbalance handling via SMOTE**.
 
-
 ---
 
 ## Problem
