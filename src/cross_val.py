@@ -34,7 +34,7 @@ def build(n_features, h1=18, h2=16, dropout=0.2):
 
     model = keras.Sequential([
 
-        layers.InputLayer(input_shape=(n_features,)),
+        layers.InputLayer(shape=(n_features,)),
 
         layers.Dense(h1, activation="relu", kernel_initializer="he_normal", kernel_regularizer=keras.regularizers.l2(0.01)),
         layers.Dropout(dropout),
