@@ -8,14 +8,11 @@ import matplotlib.pyplot as plt
 import joblib
 import seaborn as sns
 
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from keras import layers
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-from sklearn.metrics import confusion_matrix
-from sklearn.utils import class_weight
-from keras.models import load_model
 from imblearn.over_sampling import SMOTE
 
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -69,7 +66,7 @@ print("Test shape: \n", X_test.shape)
 # neural network modeling
 model = keras.Sequential([
 
-        layers.InputLayer(input_shape=(X_train.shape[1],), name="input_layer"),
+        layers.InputLayer(shape=(X_train.shape[1],), name="input_layer"),
 
         layers.Dense(18, activation="relu", name="hidden_layer1", kernel_initializer="he_normal", kernel_regularizer=keras.regularizers.l2(0.01)),
         layers.Dropout(0.2), 
@@ -147,7 +144,7 @@ plt.title("Confusion Matrix (Test set)")
 plt.show()
 
 # Classification report
-report = classification_report(y_test, y_pred, digits=4)
+report = classification_report(y_test, y_pred, digits=4, zero_division=0)
 print("Classification report:\n", report)
 
 # Save the final model and scaler
@@ -164,7 +161,6 @@ val_acc_pct = val_acc * 100
 test_acc_pct = test_acc * 100
 
 # Classification report overall accuracy
-from sklearn.metrics import accuracy_score
 overall_acc_pct = accuracy_score(y_test, y_pred) * 100
 
 print("\n================ FINAL SUMMARY ================")
