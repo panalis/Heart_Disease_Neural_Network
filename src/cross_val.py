@@ -9,6 +9,8 @@ from keras.callbacks import EarlyStopping
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from imblearn.over_sampling import SMOTE
+from sklearn.dummy import DummyClassifier
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, classification_report
 
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -43,26 +45,66 @@ def build(n_features, h1=18, h2=16, dropout=0.2):
 
     model.compile(
         optimizer=keras.optimizers.Adam(0.001),
-        loss="sparse_categorical_crossentropy", 
+        loss="sparse_categorical_crossentropy",
         metrics=["accuracy"])
     return model
 
 skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-accs = []
+
+# per-fold metric stores (NN model + majority-class baseline)
+model_acc, model_bal, model_f1 = [], [], []
+base_acc,  base_bal,  base_f1  = [], [], []
+
+# out-of-fold predictions: every sample is in exactly one test fold,
+# so collecting them gives one prediction per patient for an aggregate report
+oof_true, oof_pred = [], []
 
 for k, (train, test) in enumerate(skf.split(X, y), 1):
 
-    Xtrain, Xtest, ytrain, ytest = X[train], X[test], y[train], y[test]
-    Xtrain, ytrain = SMOTE(random_state=42, k_neighbors=3).fit_resample(Xtrain, ytrain)   # train fold only
-    
-    sc = StandardScaler().fit(Xtrain)  # fit on train fold only
+    Xtrain_raw, Xtest = X[train], X[test]
+    ytrain_raw, ytest = y[train], y[test]
 
-    Xtrain, Xtest = sc.transform(Xtrain), sc.transform(Xtest)
+    # majority-class baseline: fit on the REAL training distribution (before SMOTE)
+    dummy = DummyClassifier(strategy="most_frequent").fit(Xtrain_raw, ytrain_raw)
+    ybase = dummy.predict(Xtest)
+
+    # model pipeline: SMOTE + scaling, both fit on the train fold only
+    Xtrain, ytrain = SMOTE(random_state=42, k_neighbors=3).fit_resample(Xtrain_raw, ytrain_raw)
+    sc = StandardScaler().fit(Xtrain)
+    Xtrain, Xtest_scaled = sc.transform(Xtrain), sc.transform(Xtest)
 
     model = build(Xtrain.shape[1])
     es = EarlyStopping(monitor="loss", patience=20, restore_best_weights=True, verbose=0)
     model.fit(Xtrain, ytrain, epochs=300, batch_size=32, callbacks=[es], verbose=0)
-    acc = model.evaluate(Xtest, ytest, verbose=0)[1]
-    accs.append(acc); print(f"Fold {k}: {acc*100:.2f}%")
+    ymodel = np.argmax(model.predict(Xtest_scaled, verbose=0), axis=1)
 
-print(f"\nCV accuracy: {np.mean(accs)*100:.2f}% ± {np.std(accs)*100:.2f}%")
+    # metrics for this fold
+    model_acc.append(accuracy_score(ytest, ymodel))
+    model_bal.append(balanced_accuracy_score(ytest, ymodel))
+    model_f1.append(f1_score(ytest, ymodel, average="macro", zero_division=0))
+
+    base_acc.append(accuracy_score(ytest, ybase))
+    base_bal.append(balanced_accuracy_score(ytest, ybase))
+    base_f1.append(f1_score(ytest, ybase, average="macro", zero_division=0))
+
+    oof_true.extend(ytest)
+    oof_pred.extend(ymodel)
+
+    print(f"Fold {k}: acc={model_acc[-1]*100:5.2f}%  balanced_acc={model_bal[-1]*100:5.2f}%  macroF1={model_f1[-1]:.3f}")
+
+
+def pct(v):   # mean ± std, formatted as a percentage
+    return f"{np.mean(v)*100:5.2f}% ± {np.std(v)*100:4.2f}%"
+
+def raw(v):   # mean ± std, raw 0-1 score (for F1)
+    return f"{np.mean(v):.3f} ± {np.std(v):.3f}"
+
+print("\n=================== 5-FOLD CROSS-VALIDATION ===================")
+print(f"{'Metric':<20}{'NN model':<24}{'Majority baseline'}")
+print(f"{'Accuracy':<20}{pct(model_acc):<24}{pct(base_acc)}")
+print(f"{'Balanced accuracy':<20}{pct(model_bal):<24}{pct(base_bal)}")
+print(f"{'Macro F1':<20}{raw(model_f1):<24}{raw(base_f1)}")
+print("===============================================================")
+
+print("\nAggregated out-of-fold classification report (all patients):")
+print(classification_report(oof_true, oof_pred, digits=4, zero_division=0))
