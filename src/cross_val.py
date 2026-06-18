@@ -21,6 +21,8 @@ tf.random.set_seed(SEED)
 os.environ['TF_DETERMINISTIC_OPS'] = '1'
 os.environ['PYTHONHASHSEED'] = str(SEED)
 
+MODE = "binary" # or "binary"
+
 column_names = ["age", "sex", "cp", "trestbps", "chol", "fbs", "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal", "class_attbr"]
 
 df = pd.read_csv("./data/processed.cleveland.data", header=None, names=column_names, na_values="?").dropna()
@@ -28,7 +30,15 @@ df = pd.read_csv("./data/processed.cleveland.data", header=None, names=column_na
 inputs = ["age", "sex", "cp", "trestbps", "chol", "fbs", "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal"]
 
 X = df[inputs].values
-y = df["class_attbr"].astype(int).values
+
+if MODE == "multiclass":
+    y = df["class_attbr"].astype(int).values
+    n_classes = 5
+else:
+    y = (df["class_attbr"] > 0).astype(int).values
+    n_classes = 2
+
+
 
 def build(n_features, h1=18, h2=16, dropout=0.2):
 
@@ -40,7 +50,7 @@ def build(n_features, h1=18, h2=16, dropout=0.2):
         layers.Dropout(dropout),
         layers.Dense(h2, activation="relu", kernel_initializer="he_normal"),
 
-        layers.Dense(5, activation="softmax"),
+        layers.Dense(n_classes, activation="softmax"),
     ])
 
     model.compile(
@@ -99,6 +109,7 @@ def pct(v):   # mean ± std, formatted as a percentage
 def raw(v):   # mean ± std, raw 0-1 score (for F1)
     return f"{np.mean(v):.3f} ± {np.std(v):.3f}"
 
+print(f"\nMODE = {MODE}  ({n_classes} classes)")
 print("\n=================== 5-FOLD CROSS-VALIDATION ===================")
 print(f"{'Metric':<20}{'NN model':<24}{'Majority baseline'}")
 print(f"{'Accuracy':<20}{pct(model_acc):<24}{pct(base_acc)}")
