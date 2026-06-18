@@ -21,7 +21,7 @@ tf.random.set_seed(SEED)
 os.environ['TF_DETERMINISTIC_OPS'] = '1'
 os.environ['PYTHONHASHSEED'] = str(SEED)
 
-MODE = "binary" # or "binary"
+MODE = "multiclass" # "multiclass" or "binary"
 
 column_names = ["age", "sex", "cp", "trestbps", "chol", "fbs", "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal", "class_attbr"]
 
