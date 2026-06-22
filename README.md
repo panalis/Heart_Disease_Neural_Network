@@ -179,3 +179,9 @@ seaborn.
 
 Panagiotis Christofilopoulos
 [GitHub](https://github.com/panalis) · [LinkedIn](https://linkedin.com/in/panagiotis-christofilopoulos-7715a2357)
+
+## License
+
+The code in this repository is released under the MIT License (see [LICENSE](LICENSE)). The
+UCI Cleveland dataset is not covered by this license and remains subject to its original terms
+(research and educational use).
