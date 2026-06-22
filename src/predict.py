@@ -1,17 +1,3 @@
-"""
-predict.py - run the saved models on a new patient.
-
-Loads the trained models produced by binary.py and multiclass.py and prints a
-prediction for a single new patient:
-
-  - Binary model     -> disease / no disease   (the reliable result)
-  - Multiclass model -> severity level 0-4      (indicative only; see note)
-
-The model/scaler files are git-ignored (they are regenerated artifacts), so run
-`python src/binary.py` and `python src/multiclass.py` once first to create them.
-This script then loads those saved files.
-"""
-
 import os
 import sys
 import joblib
