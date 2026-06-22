@@ -1,227 +1,181 @@
-# Heart Disease Classification — Neural Network (Keras / TensorFlow)
+# Heart Disease Neural Network
 
-A feed-forward neural network that classifies patients into one of **five heart-disease
-severity levels (0–4)** using the UCI Cleveland Heart Disease dataset. Built with
-TensorFlow/Keras, with a focus on a **leakage-free preprocessing pipeline** and
-**class-imbalance handling via SMOTE**.
+A feedforward neural network that screens for heart disease and grades its severity on the
+UCI Cleveland dataset. The project is built around a pipeline that is free of data leakage
+and an honest, cross validated evaluation. It compares two framings of the same problem:
+reliable binary screening (disease versus no disease) and the much harder five level
+severity grading, then uses proper metrics and a baseline to show why one framing works
+and the other does not.
 
----
+> The headline of this project is not a single accuracy number. It is the finding that the
+> classic Cleveland dataset supports binary screening well (about 81% cross validated
+> accuracy) but is too small and imbalanced for trustworthy five level severity grading
+> (about 51%, which is below the majority baseline). Showing that difference with correct
+> methodology is the point.
 
-## Problem
+## The dataset
 
 The [UCI Cleveland Heart Disease dataset](https://archive.ics.uci.edu/dataset/45/heart+disease)
-contains 13 clinical features (age, sex, chest-pain type, resting blood pressure,
-cholesterol, etc.). The target ranges from `0` (no presence) to `4` (most severe). The
-goal is a multi-class classifier over all five levels — harder than the common binary
-"disease / no disease" framing, because the higher-severity classes are rare.
+holds 303 patient records with 13 clinical features (age, sex, chest pain type, resting blood
+pressure, cholesterol, and so on). A handful of rows contain missing values marked with `?`
+and are dropped, leaving 297 clean records. The target, `class_attbr`, runs from 0 (no disease)
+to 4 (most severe).
 
-## Dataset
+* **Binary framing:** 0 = no disease, 1 = disease present (any level above 0).
+* **Multiclass framing:** the full 0 - 4 severity scale.
 
-- **Source:** UCI Machine Learning Repository — Heart Disease (Cleveland subset).
-- **Rows:** 303 (a handful contain missing values marked `?`, which are dropped).
-- **Features (13):** age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang,
-  oldpeak, slope, ca, thal
-- **Target:** class_attbr ∈ {0, 1, 2, 3, 4}
+The data file is included in the repository for reproducibility and is publicly available from
+UCI for research and educational use.
 
-The data file is included for reproducibility and is publicly available from UCI for
-research and educational use.
+## Methodology
 
-## Approach & methodology
+The pipeline is deliberately built to avoid data leakage, the most common way a model quietly
+inflates its own scores:
 
-The pipeline is deliberately built to avoid **data leakage**:
+1. **Split first.** A stratified split into training, validation, and test sets (about
+   80 / 10 / 10) happens before any scaling or resampling, so the validation and test sets
+   never influence preprocessing.
+2. **SMOTE on the training set only.** Synthetic minority class samples are generated after the
+   split and only on the training data, so no synthetic information leaks into validation or test.
+3. **Scaler fit on the training set only.** `StandardScaler` learns its mean and standard
+   deviation from the training data alone, then is applied to validation and test.
 
-1. **Split first.** Stratified train / validation / test split (~80 / 10 / 10) happens
-   *before* any scaling or resampling.
-2. **SMOTE on the training set only.** Synthetic minority-class samples are generated
-   after the split and only on training data.
-3. **Scaler fit on the training set only.** StandardScaler is fit on training data and
-   merely applied to validation and test.
+Every script sets a fixed random seed (42) so results are reproducible.
 
-### Model
+## Model architecture
 
-| Layer            | Units | Notes                                          |
-|------------------|-------|------------------------------------------------|
-| Dense (hidden 1) | 22    | ReLU, He-normal init, L2 regularisation (0.01) |
-| Dropout          | —     | rate 0.2                                        |
-| Dense (hidden 2) | 19    | ReLU, He-normal init                            |
-| Dense (output)   | 5     | Softmax (5 classes)                             |
+The same compact network is used across every script, kept small on purpose for a dataset of
+roughly 300 rows:
 
-- **Loss:** sparse categorical cross-entropy
-- **Optimizer:** Adam (lr = 0.001)
-- **Callbacks:** EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-- **Epochs:** up to 300 (early-stopped)
+| Layer | Units | Notes |
+|-------|-------|-------|
+| Input | 13 | one per clinical feature |
+| Dense (hidden 1) | 18 | ReLU, He normal init, L2 regularisation (0.01) |
+| Dropout | | rate 0.2 |
+| Dense (hidden 2) | 16 | ReLU, He normal init |
+| Output | 5 or 2 | softmax (5 for multiclass, 2 for binary) |
+
+* **Loss:** sparse categorical cross entropy
+* **Optimizer:** Adam (learning rate 0.001)
+* **Callbacks:** EarlyStopping, ModelCheckpoint (best validation loss), ReduceLROnPlateau
+* **Training:** up to 300 epochs, batch size 32, stopped early when validation loss plateaus
+
+## Evaluation
+
+A single 30 sample test split is too small to trust. Early experiments swung between 60% and
+70% purely on the luck of the draw. The honest evaluation therefore uses **5 fold stratified
+cross validation**, where every patient is tested exactly once and results are reported as
+mean plus or minus standard deviation. Two safeguards make the numbers meaningful on imbalanced
+data:
+
+* A **majority class baseline** (always predict the most common class), so every model number
+  has a reference point.
+* **Balanced accuracy and macro F1** alongside plain accuracy, because raw accuracy is
+  misleading when one class dominates.
 
 ## Results
 
-### 1. Multiclass — single hold-out split (`multiclass.py`)
+All numbers below come from the same 5 fold cross validation in `cross_val.py` (switched with a
+single `MODE` variable), so the two framings are directly comparable. Every patient is tested
+exactly once per run, and scores are reported as mean plus or minus standard deviation across
+the five folds.
 
-Split: train 237 / val 30 / test 30.
+### Headline comparison
 
-```
-              precision  recall    f1     support
-   0           0.8235   0.8750   0.8485     16
-   1           0.5000   0.3333   0.4000      6
-   2           0.2500   0.3333   0.2857      3
-   3           0.2000   0.2500   0.2222      4
-   4           0.0000   0.0000   0.0000      1
-   accuracy                      0.6000     30
-```
+| Task | Accuracy | Balanced accuracy | Macro F1 | Baseline accuracy |
+|------|----------|-------------------|----------|-------------------|
+| Binary (disease versus no disease) | 80.79% ± 4.42% | 80.73% ± 4.56% | 0.807 ± 0.045 | 53.88% |
+| Multiclass (five level severity) | 51.21% ± 5.36% | 30.87% ± 5.14% | 0.303 ± 0.050 | 53.88% |
 
-Train 71.09% | Val 63.33% | Test 60.00%
+* **Binary screening is strong and trustworthy.** The model beats the majority baseline on every
+  metric by a wide margin (accuracy 81% versus 54%, balanced accuracy 81% versus 50%, macro F1
+  0.81 versus 0.35).
+* **Multiclass severity grading does not work reliably.** Raw accuracy (51%) sits *below* the
+  majority baseline (54%), yet the model scores roughly 1.5 to 2 times the baseline on balanced
+  accuracy and macro F1. It learns genuine signal but cannot grade severity dependably.
 
-> **Note:** a single 30-sample test set has high variance — not a reliable estimate.
-> Earlier runs of the same model ranged 60–70% on test. This is why the cross-validated
-> result (section 2) is the one to trust.
+### Why accuracy alone is misleading here
 
----
+Because every patient is tested exactly once across the five folds, the predictions can be
+collected into a single report covering all 297 patients (an aggregated out of fold report).
+This is where the gap between the two tasks becomes obvious.
 
-### 2. Multiclass — 5-fold stratified cross-validation (`cross_val.py`)
-
-297 patients, each tested exactly once (out-of-fold).
-
-| Fold | Accuracy | Balanced acc | Macro-F1 |
-|------|----------|--------------|----------|
-| 1 | 46.67% | 26.58% | 0.260 |
-| 2 | 46.67% | 24.35% | 0.236 |
-| 3 | 47.46% | 30.01% | 0.300 |
-| 4 | 59.32% | 37.81% | 0.363 |
-| 5 | 55.93% | 35.60% | 0.355 |
-
-| Metric | NN model | Majority baseline |
-|--------|----------|-------------------|
-| Accuracy | 51.21% ± 5.36% | 53.88% ± 0.44% |
-| Balanced accuracy | 30.87% ± 5.14% | 20.00% ± 0.00% |
-| Macro F1 | 0.303 ± 0.050 | 0.140 ± 0.001 |
-
-Aggregated out-of-fold classification report (all 297 patients):
+Binary, per class:
 
 ```
-              precision  recall    f1     support
-   0           0.8188   0.7625   0.7896    160
-   1           0.2037   0.2037   0.2037     54
-   2           0.2093   0.2571   0.2308     35
-   3           0.2250   0.2571   0.2400     35
-   4           0.0909   0.0769   0.0833     13
-   accuracy                      0.5118    297
-   macro avg   0.3095   0.3115   0.3095    297
-   weighted    0.5333   0.5118   0.5216    297
+              precision   recall   f1-score   support
+   0            0.8280    0.8125    0.8202      160
+   1            0.7857    0.8029    0.7942      137
 ```
 
-**Reading:** raw accuracy (51%) sits *below* the 54% majority baseline, but the
-imbalance-aware metrics tell the real story — balanced accuracy ~1.5× the baseline
-and macro-F1 ~2.2× the baseline. The model learns genuine minority-class signal, but
-classes 3 (35 samples) and 4 (13) are too sparse to grade reliably. Accuracy is the
-wrong metric to lead with on imbalanced data.
+Both classes score around 0.80. Performance is balanced, with no weak class.
 
----
-
-### 3. Binary — single hold-out split (`binary.py`)
-
-Target: `class_attbr > 0` → 0 = no disease, 1 = disease.
-Output: `Dense(2, softmax)` + sparse categorical cross-entropy.
+Multiclass, per class:
 
 ```
-              precision  recall    f1     support
-   0           0.8235   0.8750   0.8485     16
-   1           0.8462   0.7857   0.8148     14
-   accuracy                      0.8333     30
-   macro avg   0.8348   0.8304   0.8316     30
-   weighted    0.8341   0.8333   0.8328     30
+              precision   recall   f1-score   support
+   0            0.8188    0.7625    0.7896      160
+   1            0.2037    0.2037    0.2037       54
+   2            0.2093    0.2571    0.2308       35
+   3            0.2250    0.2571    0.2400       35
+   4            0.0909    0.0769    0.0833       13
 ```
 
-Train 88.28% | Val 83.33% | Test 83.33%
+Class 0 (no disease) is predicted well, but classes 1 through 4 collapse, and class 4 is almost
+unlearnable with only 13 patients in the entire dataset. A model that simply predicted "no
+disease" for everyone would already reach about 54% accuracy, which is why the raw 51% looks
+deceptively close to the baseline. The per class view shows the real picture: the signal needed
+for fine grained severity grading is not present in this amount of data.
 
-> **Note:** still a single 30-sample test set — indicative, not exact. Both classes
-> perform well (F1 0.85 and 0.81); unlike multiclass, no class collapses. See section 4
-> for the cross-validated version, directly comparable to section 2.
+The fold to fold spread tells the same story. Multiclass accuracy ranged from about 47% to 59%
+across the five folds, so a single train and test split could have reported anything from the
+high 40s to 70% by luck alone. Reporting the cross validated mean and standard deviation is what
+keeps the result honest.
 
----
+**Conclusion:** the Cleveland dataset is rich enough for binary screening but too small and
+imbalanced for trustworthy five level severity grading. The value of the project is the honest,
+leakage free evaluation that makes this visible, rather than any single headline accuracy.
 
-### 4. Binary — 5-fold stratified cross-validation (`cross_val.py`, `MODE="binary"`)
 
-297 patients, each tested exactly once (out-of-fold).
-
-| Fold | Accuracy | Balanced acc | Macro-F1 |
-|------|----------|--------------|----------|
-| 1 | 88.33% | 88.62% | 0.883 |
-| 2 | 80.00% | 79.91% | 0.799 |
-| 3 | 74.58% | 74.54% | 0.745 |
-| 4 | 79.66% | 79.22% | 0.794 |
-| 5 | 81.36% | 81.37% | 0.813 |
-
-| Metric | NN model | Majority baseline |
-|--------|----------|-------------------|
-| Accuracy | 80.79% ± 4.42% | 53.88% ± 0.44% |
-| Balanced accuracy | 80.73% ± 4.56% | 50.00% ± 0.00% |
-| Macro F1 | 0.807 ± 0.045 | 0.350 ± 0.002 |
-
-Aggregated out-of-fold classification report (all 297 patients):
-
-```
-              precision  recall    f1     support
-   0           0.8280   0.8125   0.8202    160
-   1           0.7857   0.8029   0.7942    137
-   accuracy                      0.8081    297
-   macro avg   0.8069   0.8077   0.8072    297
-   weighted    0.8085   0.8081   0.8082    297
-```
-
-**Reading:** the model beats the baseline on *every* metric by a wide margin
-(accuracy 81% vs 54%, balanced accuracy 81% vs 50%, macro-F1 0.81 vs 0.35), and all
-three model metrics sit together at ~0.81 — both classes predicted well, no collapsed
-class. Strong, trustworthy performance; the data clearly supports this task.
-
----
-
-### Headline comparison — cross-validation vs cross-validation
-
-Both rows come from `cross_val.py` using the same 5-fold method (`MODE` switch), so
-they are directly comparable.
-
-| Task | Accuracy | Balanced acc | Macro-F1 | Baseline acc |
-|------|----------|--------------|----------|--------------|
-| Binary (2-class) | 80.79% ± 4.42% | 80.73% | 0.807 | 53.88% |
-| Multiclass (5-class) | 51.21% ± 5.36% | 30.87% | 0.303 | 53.88% |
-
-- **Binary** beats the baseline on every metric → real, strong, balanced signal.
-- **Multiclass** falls below baseline on raw accuracy but runs ~1.5–2× the baseline on
-  the imbalance-aware metrics → it learns genuine signal but cannot reliably grade
-  severity; classes 3 and 4 (35 and 13 samples) are too sparse.
-
-**Conclusion:** the Cleveland dataset is rich enough for binary screening but too
-small and imbalanced for trustworthy 5-class severity grading. The value of the project
-is the honest, leakage-free evaluation that makes this visible — not a single headline
-accuracy figure.
-
-## Project structure
-
-```
-Heart_Disease_Neural_Network/
-├── data/processed.cleveland.data   # UCI Cleveland dataset
-├── models/                         # trained .keras files (generated, git-ignored)
-├── scaler/                         # saved StandardScaler (generated, git-ignored)
-├── src/main.py                     # load → preprocess → train → evaluate
-├── requirements.txt
-├── .gitignore
-└── README.md
-```
 
 ## How to run
 
-From the repo root:
+From the repository root:
 
 ```bash
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-python src/main.py
+```
+
+Train the models (this also produces the accuracy and loss curves, the confusion matrix, and a
+per class report):
+
+```bash
+python src/multiclass.py
+python src/binary.py
+```
+
+Run the cross validated evaluation (open `cross_val.py` and set `MODE` to `"multiclass"` or
+`"binary"`):
+
+```bash
+python src/cross_val.py
+```
+
+Predict on a new patient (edit the `new_patient` values). The model
+and scaler files are git ignored, so run the training scripts above at least once before this:
+
+```bash
+python src/predict.py
 ```
 
 ## Tech stack
 
-Python · TensorFlow / Keras · scikit-learn · imbalanced-learn (SMOTE) · pandas · NumPy ·
-Matplotlib · seaborn
+Python, TensorFlow and Keras, scikit-learn, imbalanced-learn (SMOTE), pandas, NumPy, Matplotlib,
+seaborn.
 
----
+## Author
 
-**Author:** Panagiotis Christofilopoulos — [GitHub](https://github.com/panalis) · [LinkedIn](https://linkedin.com/in/panagiotis-christofilopoulos-7715a2357)
+Panagiotis Christofilopoulos
+[GitHub](https://github.com/panalis) · [LinkedIn](https://linkedin.com/in/panagiotis-christofilopoulos-7715a2357)
